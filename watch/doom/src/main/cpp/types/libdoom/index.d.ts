@@ -26,3 +26,9 @@ export const pauseGame: () => void;
 
 /** Resumes the tick loop after a pause. */
 export const resumeGame: () => void;
+
+/**
+ * True once the engine tried to exit (Quit Game menu or a fatal error). The UI polls
+ * this and calls terminateSelf, since a native exit() is aborted by appspawn.
+ */
+export const isQuitRequested: () => boolean;

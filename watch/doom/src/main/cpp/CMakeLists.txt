@@ -65,6 +65,11 @@ target_include_directories(doom PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/third_party/tsf
 )
 
+# Redirect every exit() in libdoom (engine I_Quit/I_Error) to __wrap_exit, which
+# shuts the app down gracefully. A raw exit() is aborted by appspawn on
+# HarmonyOS/OpenHarmony (SIGABRT crash), see platform/doomgeneric_ohos.cpp.
+target_link_options(doom PRIVATE "-Wl,--wrap=exit")
+
 target_link_libraries(doom PUBLIC
     doomcore
     libace_napi.z.so

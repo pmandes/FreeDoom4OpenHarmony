@@ -7,6 +7,7 @@ import { zlib } from '@kit.BasicServicesKit';
 import {
   DOOM_XCOMPONENT_LIBRARY,
   DoomAction,
+  isDoomQuitRequested,
   pauseDoom,
   pushDoomKey,
   resumeDoom,
@@ -105,6 +106,24 @@ struct Index {
   /** Pauses the game loop when the page is hidden. */
   onPageHide(): void {
     pauseDoom();
+  }
+
+  private quitTimer: number = -1;
+
+  // Polls the native quit flag; when the engine asked to exit (Quit Game menu or a
+  // fatal error) we close the ability cleanly. A native exit() would be aborted by
+  // appspawn (SIGABRT crash), so the engine's exit() is redirected to a flag instead.
+  private armQuitWatcher(): void {
+    if (this.quitTimer >= 0) {
+      return;
+    }
+    this.quitTimer = setInterval(() => {
+      if (isDoomQuitRequested()) {
+        clearInterval(this.quitTimer);
+        this.quitTimer = -1;
+        this.getCtx().terminateSelf();
+      }
+    }, 250);
   }
 
   // ArkTS struct getters return undefined - hence these methods.
@@ -439,6 +458,7 @@ struct Index {
           this.ensureInit();
           const ctx = this.getCtx();
           startDoom(ctx.resourceManager, ctx.filesDir, this.selectedPath);
+          this.armQuitWatcher();
         })
         // Tap = fire + use + confirm (ENTER also acts as "Y", because
         // key_menu_confirm is rebound to ENTER in the native layer).

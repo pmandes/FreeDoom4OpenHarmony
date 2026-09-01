@@ -140,3 +140,11 @@ export function pauseDoom(): void {
 export function resumeDoom(): void {
   native.resumeGame();
 }
+
+/**
+ * True once the engine tried to exit (Quit Game menu or a fatal error). The page
+ * polls this and calls terminateSelf, because a native exit() is aborted by appspawn.
+ */
+export function isDoomQuitRequested(): boolean {
+  return native.isQuitRequested();
+}
