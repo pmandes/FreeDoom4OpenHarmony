@@ -1,0 +1,16 @@
+{
+  "string": [
+    {
+      "name": "module_desc",
+      "value": "Doom4OH — port Dooma (doomgeneric + Freedoom) na HarmonyOS"
+    },
+    {
+      "name": "EntryAbility_desc",
+      "value": "Ekran gry Doom4OH"
+    },
+    {
+      "name": "EntryAbility_label",
+      "value": "Doom4OH"
+    }
+  ]
+}

@@ -1,0 +1,11 @@
+{
+  "name": "doom",
+  "version": "1.0.0",
+  "description": "Natywny port Dooma (doomgeneric) dla HarmonyOS: silnik C, warstwa platformowa OHOS i bridge NAPI.",
+  "main": "Index.ets",
+  "author": "",
+  "license": "GPL-2.0",
+  "dependencies": {
+    "libdoom.so": "file:./src/main/cpp/types/libdoom"
+  }
+}

@@ -1,0 +1,29 @@
+# Build outputs & caches
+**/build/
+**/.cxx/
+**/.hvigor/
+**/oh_modules/
+**/node_modules/
+**/.test/
+**/.appanalyzer/
+**/local.properties
+
+# IDE / tooling
+**/.idea/
+**/.clangd
+**/.clang-format
+**/.clang-tidy
+
+# Docs (not tracked)
+**/docs/
+
+# Signing material — NEVER commit
+**/.ohos/
+*.p12
+*.cer
+*.p7b
+*.csr
+*.keystore
+*.jks
+*.pem
+*.key
