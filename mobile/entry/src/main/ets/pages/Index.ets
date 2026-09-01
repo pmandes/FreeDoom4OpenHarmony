@@ -5,6 +5,7 @@ import {
   DOOM_XCOMPONENT_LIBRARY,
   DoomAction,
   getDoomVersion,
+  isDoomQuitRequested,
   mapHardwareKey,
   pauseDoom,
   pushDoomKey,
@@ -44,6 +45,7 @@ struct Index {
   @State lKnobY: number = 0;
   @State rKnobX: number = 0;
   private idleTimer: number = -1;
+  private quitTimer: number = -1;
   private useDownX = 0;
   private useDownY = 0;
   private useDownT = 0;
@@ -198,6 +200,22 @@ struct Index {
         this.overlayOpacity = 0;
       });
     }, 10000);
+  }
+
+  // Polls the native quit flag; when the engine asked to exit (Quit Game menu or a
+  // fatal error) we close the ability cleanly. A native exit() would be aborted by
+  // appspawn (SIGABRT crash), so the engine's exit() is redirected to a flag instead.
+  private armQuitWatcher(): void {
+    if (this.quitTimer >= 0) {
+      return;
+    }
+    this.quitTimer = setInterval(() => {
+      if (isDoomQuitRequested()) {
+        clearInterval(this.quitTimer);
+        this.quitTimer = -1;
+        this.getCtx().terminateSelf();
+      }
+    }, 250);
   }
 
   // NOTE: property getters in ArkTS structs return undefined (verified on the
@@ -466,6 +484,7 @@ struct Index {
           const ok = startDoom(this.getCtx().resourceManager, this.getCtx().filesDir, this.selectedPath);
           this.status = ok ? `native ${getDoomVersion()}` : 'START FAILED';
           this.armIdleTimer();
+          this.armQuitWatcher();
         })
       // XComponent SURFACE doesn't receive onTouch on real HW — a separate
       // transparent layer above the game catches the USE tap (below the controls,

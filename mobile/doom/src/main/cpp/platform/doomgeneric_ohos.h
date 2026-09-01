@@ -15,6 +15,11 @@ void Stop();
 
 bool IsRunning();
 
+// True once the engine tried to exit() (Quit Game menu, or a fatal I_Error). The
+// ArkTS side polls this and calls terminateSelf to close the app gracefully —
+// calling exit() directly is forbidden on HarmonyOS/OpenHarmony (appspawn aborts it).
+bool IsQuitRequested();
+
 // Pauses/resumes the tick loop (background/foreground). Game state is preserved.
 void Pause();
 void Resume();

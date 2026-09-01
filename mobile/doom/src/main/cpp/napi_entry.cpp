@@ -137,6 +137,16 @@ static napi_value ResumeGame(napi_env env, napi_callback_info info)
     return nullptr;
 }
 
+// isQuitRequested() -> bool. True once the engine tried to exit (Quit Game / fatal
+// error). ArkTS polls this and calls terminateSelf, since a native exit() would be
+// aborted by appspawn.
+static napi_value IsQuitRequested(napi_env env, napi_callback_info info)
+{
+    napi_value result = nullptr;
+    napi_get_boolean(env, game::IsQuitRequested(), &result);
+    return result;
+}
+
 // pushKey(action, pressed) — actions from the input::Action enum; called from the ArkTS overlay.
 static napi_value PushKey(napi_env env, napi_callback_info info)
 {
@@ -220,6 +230,7 @@ static napi_value Init(napi_env env, napi_value exports)
         {"pushRawKey", nullptr, PushRawKeyNapi, nullptr, nullptr, nullptr, napi_default, nullptr},
         {"pauseGame", nullptr, PauseGame, nullptr, nullptr, nullptr, napi_default, nullptr},
         {"resumeGame", nullptr, ResumeGame, nullptr, nullptr, nullptr, napi_default, nullptr},
+        {"isQuitRequested", nullptr, IsQuitRequested, nullptr, nullptr, nullptr, napi_default, nullptr},
     };
     napi_define_properties(env, exports, sizeof(desc) / sizeof(desc[0]), desc);
     RegisterXComponent(env, exports);

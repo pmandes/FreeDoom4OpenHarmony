@@ -59,6 +59,23 @@ static void AutoFillSaveName()
     prevSaveStringEnter = saveStringEnter;
 }
 
+// HarmonyOS/OpenHarmony forbid an app process from calling exit(): appspawn
+// intercepts it and aborts (SIGABRT), which surfaces as a crash. The Doom engine
+// calls exit() when quitting (I_Quit) and on fatal errors (I_Error). We redirect
+// every exit() in libdoom to this wrapper via the linker (-Wl,--wrap=exit) and turn
+// it into a graceful shutdown: raise a flag the ArkTS side polls (it calls
+// terminateSelf) and park this thread so no engine code runs past the exit point.
+static std::atomic<bool> g_quitRequested{false};
+
+extern "C" void __wrap_exit(int /*code*/)
+{
+    g_quitRequested.store(true, std::memory_order_release);
+    OH_LOG_INFO(LOG_APP, "exit() intercepted -> requesting graceful terminateSelf");
+    for (;;) {
+        std::this_thread::sleep_for(std::chrono::milliseconds(200));
+    }
+}
+
 namespace game {
 namespace {
 
@@ -178,6 +195,8 @@ void Stop()
 }
 
 bool IsRunning() { return g_running.load(std::memory_order_acquire); }
+
+bool IsQuitRequested() { return g_quitRequested.load(std::memory_order_acquire); }
 
 void Pause()
 {
