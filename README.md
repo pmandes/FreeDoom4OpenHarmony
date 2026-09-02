@@ -265,7 +265,7 @@ being dropped.
 | Device | OS | Status |
 |---|---|---|
 | Huawei Pura 70 | HarmonyOS 6.0.2 | Working |
-| Huawei Watch 5 | HarmonyOS (wearable) | Working |
+| Huawei Watch 5 | HarmonyOS 6.1.0.330 (wearable) | Working |
 | Volla Phone X23 | Oniro / OpenHarmony 6.1.0 (API 23) | Working |
 
 ## Credits and acknowledgements
