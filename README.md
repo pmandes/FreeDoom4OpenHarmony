@@ -244,9 +244,14 @@ hdc -t <device> file send -b org.pmandes.fd4ohos doom2.wad data/storage/el2/base
 
 Music is rendered from the WAD's MUS tracks through MIDI with FluidLite. The
 bundled `TimGM6mb.sf2` (6 MB, General MIDI) is used by default. For the sound
-DOOM's music was composed on, drop a **Roland SC-55** SoundFont into the app
-sandbox as `files/soundfont.sf2`; it takes precedence over the bundled one at
-the next start:
+DOOM's music was composed on, load a **Roland SC-55** SoundFont; it takes
+precedence over the bundled one at the next start.
+
+**Phone - from the app:** settings screen (**⚙**) > **Load soundfont…**, pick an
+`.sf2`, then **Apply & Restart**. **Remove** reverts to the built-in one.
+
+**Any device - over `hdc`:** copy the file into the sandbox as
+`files/soundfont.sf2` (the sandbox path contains the HAP module name):
 
 ```
 # phone
@@ -255,7 +260,7 @@ hdc -t <device> file send -b org.pmandes.fd4ohos SC-55.sf2 data/storage/el2/base
 hdc -t <device> file send -b org.pmandes.fd4ohos SC-55.sf2 data/storage/el2/base/haps/entry_watch/files/soundfont.sf2
 ```
 
-Delete the file to go back to `TimGM6mb.sf2`. The log line
+Delete the file (or tap **Remove**) to go back to `TimGM6mb.sf2`. The log line
 `startGame: using user soundfont` confirms which one is active. A 45 MB SC-55
 SF2 has been verified on both the phone and the watch (about 190 MB RSS on the
 watch, no audio drop-outs). SoundFonts with broken sample loop points are

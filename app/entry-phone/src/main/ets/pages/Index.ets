@@ -23,6 +23,7 @@ interface WadEntry {
 /** Persisted user settings. */
 interface Settings {
   iwad?: string;
+  soundfont?: string; // display name of the side-loaded soundfont ('' / absent = built-in GM)
 }
 
 // Analog joysticks (a phone has more room than a watch).
@@ -40,6 +41,9 @@ struct Index {
   @State showSettings: boolean = false;
   @State wads: WadEntry[] = [];
   @State selectedPath: string = '';
+  // Custom music soundfont: '' = bundled General MIDI (TimGM6mb.sf2), otherwise
+  // the display name of the side-loaded files/soundfont.sf2 (e.g. a Roland SC-55).
+  @State soundfontName: string = '';
   @State overlayOpacity: number = 1;
   @State lKnobX: number = 0;
   @State lKnobY: number = 0;
@@ -241,8 +245,18 @@ struct Index {
       const txt = fs.readTextSync(this.getSettingsPath());
       const s = JSON.parse(txt) as Settings;
       this.selectedPath = s.iwad ?? '';
+      this.soundfontName = s.soundfont ?? '';
     } catch (err) {
       this.selectedPath = ''; // missing/corrupt settings file = built-in Freedoom
+      this.soundfontName = '';
+    }
+    // Reconcile the recorded name with what is actually on disk: a wiped sandbox
+    // leaves the name dangling, while a soundfont.sf2 pushed over hdc has no name.
+    const hasFile = this.soundfontExists();
+    if (this.soundfontName !== '' && !hasFile) {
+      this.soundfontName = '';
+    } else if (this.soundfontName === '' && hasFile) {
+      this.soundfontName = 'Custom soundfont';
     }
     this.refreshWads();
   }
@@ -251,12 +265,27 @@ struct Index {
     return this.getCtx().filesDir + '/settings.json';
   }
 
-  /** Persists the selected IWAD path to settings.json. */
+  /** Absolute path of the side-loaded soundfont the engine prefers over the built-in one. */
+  private getSoundfontPath(): string {
+    return this.getCtx().filesDir + '/soundfont.sf2';
+  }
+
+  /** True when a custom soundfont.sf2 is present in the sandbox. */
+  private soundfontExists(): boolean {
+    try {
+      fs.accessSync(this.getSoundfontPath());
+      return true;
+    } catch (err) {
+      return false;
+    }
+  }
+
+  /** Persists the selected IWAD path and soundfont name to settings.json. */
   private saveSettings(): void {
     try {
       const file = fs.openSync(this.getSettingsPath(),
         fs.OpenMode.READ_WRITE | fs.OpenMode.CREATE | fs.OpenMode.TRUNC);
-      const s: Settings = { iwad: this.selectedPath };
+      const s: Settings = { iwad: this.selectedPath, soundfont: this.soundfontName };
       fs.writeSync(file.fd, JSON.stringify(s));
       fs.closeSync(file);
     } catch (err) {
@@ -318,6 +347,41 @@ struct Index {
     } catch (err) {
       this.status = `import failed: ${JSON.stringify(err)}`;
     }
+  }
+
+  /**
+   * Opens the document picker and copies the chosen SoundFont over the sandbox's
+   * soundfont.sf2, which the engine loads in preference to the bundled GM one.
+   * Takes effect on the next Apply & Restart.
+   */
+  private async importSoundfont(): Promise<void> {
+    try {
+      const dvp = new picker.DocumentViewPicker(this.getCtx());
+      const uris = await dvp.select({ maxSelectNumber: 1, fileSuffixFilters: ['SoundFont|.sf2'] });
+      if (!uris || uris.length === 0) {
+        return;
+      }
+      const uri = uris[0];
+      const name = decodeURIComponent(uri.split('/').pop() ?? 'soundfont.sf2');
+      const src = fs.openSync(uri, fs.OpenMode.READ_ONLY);
+      fs.copyFileSync(src.fd, this.getSoundfontPath());
+      fs.closeSync(src);
+      this.soundfontName = name;
+      this.status = `soundfont: ${name}`;
+    } catch (err) {
+      this.status = `soundfont import failed: ${JSON.stringify(err)}`;
+    }
+  }
+
+  /** Removes the custom soundfont so the engine falls back to the bundled GM one. */
+  private removeSoundfont(): void {
+    try {
+      fs.unlinkSync(this.getSoundfontPath());
+    } catch (err) {
+      // already gone — OK
+    }
+    this.soundfontName = '';
+    this.status = 'soundfont: built-in';
   }
 
   /** Saves settings and restarts the app to load the newly selected IWAD. */
@@ -720,6 +784,31 @@ struct Index {
           }
           .width('100%')
           .height(170)
+
+          Row({ space: 10 }) {
+            Column() {
+              Text('Music soundfont')
+                .fontSize(12)
+                .fontColor('#80FFFFFF')
+              Text(this.soundfontName !== '' ? this.soundfontName : 'General MIDI (built-in)')
+                .fontSize(14)
+                .fontColor('#E6FFFFFF')
+                .maxLines(1)
+                .textOverflow({ overflow: TextOverflow.Ellipsis })
+            }
+            .layoutWeight(1)
+            .alignItems(HorizontalAlign.Start)
+
+            this.actionButton('Load soundfont…', () => {
+              this.importSoundfont();
+            })
+            if (this.soundfontName !== '') {
+              this.actionButton('Remove', () => {
+                this.removeSoundfont();
+              })
+            }
+          }
+          .width('100%')
 
           Row({ space: 12 }) {
             this.actionButton('Load WAD…', () => {
