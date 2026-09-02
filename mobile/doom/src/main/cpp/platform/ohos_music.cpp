@@ -1,4 +1,8 @@
-// DG_music_module: MUS/MIDI -> TinySoundFont (GM soundfont from rawfile).
+// DG_music_module: MUS/MIDI -> FluidLite (a glib-free FluidSynth core) rendering a
+// SoundFont from the sandbox. FluidLite adds the reverb/chorus and full SF2 modulator
+// engine that TinySoundFont lacks, so an SC-55 SoundFont sounds much closer to the
+// Roland module DOOM's music was written for.
+//
 // The game thread calls Register/Play/Stop/SetVolume under a mutex; the audio thread
 // renders in MixInto via try_lock (on a song change — one tick of music silence).
 
@@ -14,8 +18,8 @@
 #include "ohos_audio.h"
 #include "ohos_music.h"
 
-#define TSF_IMPLEMENTATION
-#include "tsf.h"
+#include "fluidlite.h"
+
 #define TML_IMPLEMENTATION
 #include "tml.h"
 
@@ -32,6 +36,8 @@ namespace {
 
 constexpr int32_t kMaxChunkFrames = 4096;
 constexpr int32_t kRenderBlock = 512;
+constexpr int kDrumChannel = 9;    // MIDI channel 10 (0-based) — GM percussion.
+constexpr unsigned int kDrumBank = 128;
 
 struct Song {
     tml_message *head;
@@ -39,7 +45,9 @@ struct Song {
 
 std::mutex g_lock;
 std::string g_sfPath;
-tsf *g_synth = nullptr;
+fluid_settings_t *g_settings = nullptr;
+fluid_synth_t *g_synth = nullptr;
+int g_gainVolume = 127;
 Song *g_current = nullptr;
 tml_message *g_cursor = nullptr;
 bool g_playing = false;
@@ -48,24 +56,56 @@ bool g_paused = false;
 double g_msec = 0.0;
 std::vector<int16_t> g_tmp;
 
+// FluidLite exposes no "all notes off" call; MIDI CC 123 does it per channel.
+void AllNotesOff()
+{
+    if (g_synth == nullptr) {
+        return;
+    }
+    for (int ch = 0; ch < 16; ch++) {
+        fluid_synth_cc(g_synth, ch, 123, 0); // All Notes Off
+    }
+}
+
+// Full reset for a fresh song: clears notes, controllers and programs, then restores
+// the GM percussion bank on channel 10 (system_reset drops every channel to bank 0).
+void ResetForNewSong()
+{
+    if (g_synth == nullptr) {
+        return;
+    }
+    fluid_synth_system_reset(g_synth);
+    fluid_synth_bank_select(g_synth, kDrumChannel, kDrumBank);
+    fluid_synth_program_change(g_synth, kDrumChannel, 0);
+}
+
+void ApplyGain()
+{
+    if (g_synth != nullptr) {
+        // DOOM volume 0..127 -> FluidSynth gain. 0.5 at full keeps music present
+        // without clipping once summed with SFX in the mixer.
+        fluid_synth_set_gain(g_synth, static_cast<float>(std::clamp(g_gainVolume, 0, 127)) / 127.0f * 0.5f);
+    }
+}
+
 void ProcessMidiUpTo(double msec)
 {
     while (g_cursor != nullptr && g_cursor->time <= msec) {
         switch (g_cursor->type) {
             case TML_PROGRAM_CHANGE:
-                tsf_channel_set_presetnumber(g_synth, g_cursor->channel, g_cursor->program, g_cursor->channel == 9);
+                fluid_synth_program_change(g_synth, g_cursor->channel, g_cursor->program);
                 break;
             case TML_NOTE_ON:
-                tsf_channel_note_on(g_synth, g_cursor->channel, g_cursor->key, g_cursor->velocity / 127.0f);
+                fluid_synth_noteon(g_synth, g_cursor->channel, g_cursor->key, g_cursor->velocity);
                 break;
             case TML_NOTE_OFF:
-                tsf_channel_note_off(g_synth, g_cursor->channel, g_cursor->key);
+                fluid_synth_noteoff(g_synth, g_cursor->channel, g_cursor->key);
                 break;
             case TML_PITCH_BEND:
-                tsf_channel_set_pitchwheel(g_synth, g_cursor->channel, g_cursor->pitch_bend);
+                fluid_synth_pitch_bend(g_synth, g_cursor->channel, g_cursor->pitch_bend);
                 break;
             case TML_CONTROL_CHANGE:
-                tsf_channel_midi_control(g_synth, g_cursor->channel, g_cursor->control, g_cursor->control_value);
+                fluid_synth_cc(g_synth, g_cursor->channel, g_cursor->control, g_cursor->control_value);
                 break;
             default:
                 break;
@@ -78,14 +118,25 @@ boolean I_OHOS_InitMusic(void)
 {
     std::lock_guard<std::mutex> lock(g_lock);
     if (g_synth == nullptr && !g_sfPath.empty()) {
-        g_synth = tsf_load_filename(g_sfPath.c_str());
-        if (g_synth != nullptr) {
-            tsf_set_output(g_synth, TSF_STEREO_INTERLEAVED, audio::kSampleRate, 0.0f);
-            tsf_channel_set_bank_preset(g_synth, 9, 128, 0); // GM percussion channel
+        g_settings = new_fluid_settings();
+        fluid_settings_setnum(g_settings, "synth.sample-rate", static_cast<double>(audio::kSampleRate));
+        fluid_settings_setint(g_settings, "synth.polyphony", 64);
+        g_synth = new_fluid_synth(g_settings);
+        if (g_synth != nullptr && fluid_synth_sfload(g_synth, g_sfPath.c_str(), 1) >= 0) {
+            fluid_synth_set_reverb_on(g_synth, 1);
+            fluid_synth_set_chorus_on(g_synth, 1);
+            fluid_synth_bank_select(g_synth, kDrumChannel, kDrumBank); // GM percussion channel
+            ApplyGain();
             g_tmp.resize(static_cast<size_t>(kMaxChunkFrames) * 2);
-            OH_LOG_INFO(LOG_APP, "music: soundfont loaded (%{public}d presets)", tsf_get_presetcount(g_synth));
+            OH_LOG_INFO(LOG_APP, "music: soundfont loaded via FluidLite (reverb+chorus on)");
         } else {
             OH_LOG_ERROR(LOG_APP, "music: cannot load soundfont %{public}s — music disabled", g_sfPath.c_str());
+            if (g_synth != nullptr) {
+                delete_fluid_synth(g_synth);
+                g_synth = nullptr;
+            }
+            delete_fluid_settings(g_settings);
+            g_settings = nullptr;
         }
     }
     return true; // a missing soundfont does not block the game — it runs without music
@@ -98,26 +149,26 @@ void I_OHOS_ShutdownMusic(void)
     g_cursor = nullptr;
     g_current = nullptr;
     if (g_synth != nullptr) {
-        tsf_close(g_synth);
+        delete_fluid_synth(g_synth);
         g_synth = nullptr;
+    }
+    if (g_settings != nullptr) {
+        delete_fluid_settings(g_settings);
+        g_settings = nullptr;
     }
 }
 
 void I_OHOS_SetMusicVolume(int volume)
 {
     std::lock_guard<std::mutex> lock(g_lock);
-    if (g_synth != nullptr) {
-        tsf_set_volume(g_synth, static_cast<float>(std::clamp(volume, 0, 127)) / 127.0f);
-    }
+    g_gainVolume = volume;
+    ApplyGain();
 }
 
 void I_OHOS_PauseSong(void)
 {
     std::lock_guard<std::mutex> lock(g_lock);
-    g_paused = true;
-    if (g_synth != nullptr) {
-        tsf_note_off_all(g_synth);
-    }
+    g_paused = true; // MixInto stops mixing music; notes resume on unpause
 }
 
 void I_OHOS_ResumeSong(void)
@@ -173,9 +224,7 @@ void I_OHOS_UnRegisterSong(void *handle)
         g_playing = false;
         g_cursor = nullptr;
         g_current = nullptr;
-        if (g_synth != nullptr) {
-            tsf_note_off_all(g_synth);
-        }
+        AllNotesOff();
     }
     tml_free(song->head);
     delete song;
@@ -191,7 +240,7 @@ void I_OHOS_PlaySong(void *handle, boolean looping)
     if (g_synth == nullptr) {
         return;
     }
-    tsf_note_off_all(g_synth);
+    ResetForNewSong();
     g_current = song;
     g_cursor = song->head;
     g_msec = 0.0;
@@ -207,9 +256,7 @@ void I_OHOS_StopSong(void)
     g_playing = false;
     g_cursor = nullptr;
     g_current = nullptr;
-    if (g_synth != nullptr) {
-        tsf_note_off_all(g_synth);
-    }
+    AllNotesOff();
 }
 
 boolean I_OHOS_MusicIsPlaying(void)
@@ -249,12 +296,12 @@ void MixInto(int32_t *accum, int32_t frameCount)
             if (g_looping && g_current != nullptr) {
                 g_cursor = g_current->head;
                 g_msec = 0.0;
-                tsf_note_off_all(g_synth);
+                AllNotesOff();
             } else if (!g_looping) {
                 g_playing = false; // tail rings out in this block, then silence
             }
         }
-        tsf_render_short(g_synth, g_tmp.data(), block, 0);
+        fluid_synth_write_s16(g_synth, block, g_tmp.data(), 0, 2, g_tmp.data(), 1, 2);
         for (int32_t i = 0; i < block * 2; i++) {
             accum[static_cast<size_t>(done) * 2 + i] += g_tmp[i];
         }

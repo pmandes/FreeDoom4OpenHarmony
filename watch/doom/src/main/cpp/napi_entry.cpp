@@ -77,9 +77,20 @@ static napi_value StartGame(napi_env env, napi_callback_info info)
     }
     if (ok) {
         // The soundfont is optional — without it the game runs with SFX but no music.
-        const std::string sfPath = filesDir + "/TimGM6mb.sf2";
-        if (files::EnsureRawFileCopied(resMgr, "TimGM6mb.sf2", sfPath)) {
-            music::SetSoundFontPath(sfPath);
+        // Prefer a user-provided soundfont side-loaded into the sandbox as
+        // "soundfont.sf2" (e.g. a Roland SC-55 SF2, the module DOOM's music was
+        // written for) over the bundled General MIDI TimGM6mb.sf2.
+        const std::string userSf = filesDir + "/soundfont.sf2";
+        struct stat sfSt{};
+        if (stat(userSf.c_str(), &sfSt) == 0 && sfSt.st_size > 0) {
+            music::SetSoundFontPath(userSf);
+            OH_LOG_INFO(LOG_APP, "startGame: using user soundfont %{public}s (%{public}ld B)", userSf.c_str(),
+                        static_cast<long>(sfSt.st_size));
+        } else {
+            const std::string sfPath = filesDir + "/TimGM6mb.sf2";
+            if (files::EnsureRawFileCopied(resMgr, "TimGM6mb.sf2", sfPath)) {
+                music::SetSoundFontPath(sfPath);
+            }
         }
     }
     if (resMgr != nullptr) {

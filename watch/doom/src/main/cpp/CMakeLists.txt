@@ -41,13 +41,22 @@ target_include_directories(doomcore PUBLIC ${DOOMGENERIC_DIR})
 # but doesn't use any Mix_* symbols — an empty header instead of patching the engine.
 target_include_directories(doomcore PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/shim)
 
-# TSF synthesis and the mixer must meet the audio callback deadline even
-# in debug builds — the rest stays at -O0 for debuggability.
+# The synth/mixer must meet the audio callback deadline even in debug builds —
+# the rest stays at -O0 for debuggability.
 set_source_files_properties(
     platform/ohos_music.cpp
     platform/ohos_sound.cpp
     PROPERTIES COMPILE_OPTIONS "-O2"
 )
+
+# FluidLite: a glib-free FluidSynth core used to render the MIDI music from a
+# SoundFont (adds reverb/chorus and the full SF2 engine that TinySoundFont lacks).
+# SF2 only — SF3/ogg/vorbis disabled, so it needs no external dependencies.
+set(ENABLE_SF3 OFF CACHE BOOL "" FORCE)
+set(FLUIDLITE_BUILD_SHARED OFF CACHE BOOL "" FORCE)
+set(FLUIDLITE_BUILD_STATIC ON CACHE BOOL "" FORCE)
+add_subdirectory(third_party/fluidlite EXCLUDE_FROM_ALL)
+target_compile_options(fluidlite-static PRIVATE -O2) # meet the audio deadline
 
 add_library(doom SHARED
     napi_entry.cpp
@@ -63,6 +72,7 @@ add_library(doom SHARED
 target_include_directories(doom PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}
     ${CMAKE_CURRENT_SOURCE_DIR}/third_party/tsf
+    ${CMAKE_CURRENT_SOURCE_DIR}/third_party/fluidlite/include
 )
 
 # Redirect every exit() in libdoom (engine I_Quit/I_Error) to __wrap_exit, which
@@ -72,6 +82,7 @@ target_link_options(doom PRIVATE "-Wl,--wrap=exit")
 
 target_link_libraries(doom PUBLIC
     doomcore
+    fluidlite-static
     libace_napi.z.so
     libhilog_ndk.z.so
     libace_ndk.z.so
