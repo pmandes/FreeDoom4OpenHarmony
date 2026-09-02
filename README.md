@@ -85,8 +85,10 @@ Native code is built for `arm64-v8a` (devices) and `x86_64` (emulator).
    a Huawei developer account, a debug / self-signed profile is fine for local
    devices). One signing config covers both products; connect the phone and the
    watch so the debug profile includes both devices.
-3. Pick the product in Build > Select Build Variant (`default` = phone,
-   `watch` = wearable), then press Run, or Build > Build Hap(s).
+3. Pick the product with the **Product** button in the top-right corner of
+   the IDE (`default` = phone, `watch` = wearable) and click Apply. Then choose
+   the matching run configuration (`entry_phone` / `entry_watch`) and device,
+   and press Run, or Build > Build Hap(s).
 
 ### From the command line (no IDE)
 
