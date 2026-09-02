@@ -1,0 +1,12 @@
+{
+  "name": "entry_phone",
+  "version": "1.0.0",
+  "description": "Phone HAP host: landscape game page with dual-stick touch controls.",
+  "main": "",
+  "author": "",
+  "license": "",
+  "dependencies": {
+    "doom": "file:../doom"
+  }
+}
+

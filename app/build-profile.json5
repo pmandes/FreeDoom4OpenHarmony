@@ -1,0 +1,75 @@
+{
+  "app": {
+    // Signing material is injected locally by DevEco (automatic signing for
+    // org.pmandes.fd4ohos) and must never be committed: this file is marked
+    // `git update-index --skip-worktree build-profile.json5`.
+    "signingConfigs": [],
+    "products": [
+      {
+        // Phone product (entry_phone HAP).
+        "name": "default",
+        "targetSdkVersion": "6.0.2(22)",
+        "compatibleSdkVersion": "6.0.0(20)",
+        "runtimeOS": "HarmonyOS",
+        "buildOption": {
+          "strictMode": {
+            "caseSensitiveCheck": true,
+            "useNormalizedOHMUrl": true
+          }
+        }
+      },
+      {
+        // Wearable product (entry_watch HAP).
+        "name": "watch",
+        "targetSdkVersion": "6.1.0(23)",
+        "compatibleSdkVersion": "6.0.0(20)",
+        "runtimeOS": "HarmonyOS",
+        "buildOption": {
+          "strictMode": {
+            "caseSensitiveCheck": true,
+            "useNormalizedOHMUrl": true
+          }
+        }
+      }
+    ],
+    "buildModeSet": [
+      {
+        "name": "debug",
+      },
+      {
+        "name": "release"
+      }
+    ]
+  },
+  "modules": [
+    {
+      // Shared HAR: doomgeneric engine, OHOS platform layer, FluidLite, NAPI bridge.
+      "name": "doom",
+      "srcPath": "./doom"
+    },
+    {
+      "name": "entry_phone",
+      "srcPath": "./entry-phone",
+      "targets": [
+        {
+          "name": "default",
+          "applyToProducts": [
+            "default"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "entry_watch",
+      "srcPath": "./entry-watch",
+      "targets": [
+        {
+          "name": "default",
+          "applyToProducts": [
+            "watch"
+          ]
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,12 @@
+{
+  "name": "entry_watch",
+  "version": "1.0.0",
+  "description": "Wearable HAP host: round-screen game page with a single joystick and WAD downloads.",
+  "main": "",
+  "author": "",
+  "license": "",
+  "dependencies": {
+    "doom": "file:../doom"
+  }
+}
+

@@ -1,6 +1,0 @@
-{
-  "name": "libdoom.so",
-  "types": "./index.d.ts",
-  "version": "1.0.0",
-  "description": "Doom4OH native engine bridge"
-}

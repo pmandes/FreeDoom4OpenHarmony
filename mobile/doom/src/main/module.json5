@@ -1,9 +1,0 @@
-{
-  "module": {
-    "name": "doom",
-    "type": "har",
-    "deviceTypes": [
-      "phone"
-    ]
-  }
-}
