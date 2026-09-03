@@ -1,5 +1,6 @@
 import { common, Want } from '@kit.AbilityKit';
 import { picker } from '@kit.CoreFileKit';
+import { hilog } from '@kit.PerformanceAnalysisKit';
 import {
   DOOM_XCOMPONENT_LIBRARY,
   getDoomVersion,
@@ -16,8 +17,7 @@ import { GameControls } from '../view/GameControls';
 @Entry
 @Component
 struct Index {
-  @State status: string = 'starting…';
-  @State engineVersion: string = ''; // native library version, shown in About (stable — unlike status)
+  @State engineVersion: string = ''; // native library version, shown in the About section
   @State showSettings: boolean = false;
   @State wads: WadEntry[] = [];
   @State selectedPath: string = '';
@@ -117,9 +117,9 @@ struct Index {
       if (!uris || uris.length === 0) {
         return;
       }
-      this.status = `imported ${vm.importWad(uris[0])}`;
+      vm.importWad(uris[0]);
     } catch (err) {
-      this.status = `import failed: ${JSON.stringify(err)}`;
+      hilog.error(0x0000, 'Doom4OH', 'WAD import failed: %{public}s', JSON.stringify(err));
     }
   }
 
@@ -138,16 +138,15 @@ struct Index {
       if (!uris || uris.length === 0) {
         return;
       }
-      this.status = `soundfont: ${vm.importSoundfont(uris[0])}`;
+      vm.importSoundfont(uris[0]);
     } catch (err) {
-      this.status = `soundfont import failed: ${JSON.stringify(err)}`;
+      hilog.error(0x0000, 'Doom4OH', 'soundfont import failed: %{public}s', JSON.stringify(err));
     }
   }
 
   /** Switches to the bundled General MIDI (the custom file is kept). */
   private useBuiltinSoundfont(): void {
     this.settingsVM?.useBuiltinSoundfont();
-    this.status = 'soundfont: built-in';
   }
 
   /** Switches to the custom soundfont, when one is available. */
@@ -158,7 +157,6 @@ struct Index {
   /** Deletes the custom soundfont file and reverts to General MIDI. */
   private deleteCustomSoundfont(): void {
     this.settingsVM?.deleteCustomSoundfont();
-    this.status = 'soundfont: removed';
   }
 
   /** Saves the selection and restarts the app so the engine reloads with it. */
@@ -166,7 +164,7 @@ struct Index {
     // Only restart once the settings are safely on disk — otherwise the restart
     // would drop the staged changes and reload the old ones.
     if (this.settingsVM?.persist() !== true) {
-      this.status = 'save failed — settings not applied';
+      hilog.error(0x0000, 'Doom4OH', 'save failed — settings not applied, not restarting');
       return;
     }
     const want: Want = {
@@ -202,7 +200,9 @@ struct Index {
           const ok = this.gameVM.start(this.getCtx().resourceManager, this.getCtx().filesDir,
             this.selectedPath, soundfontPath);
           this.engineVersion = getDoomVersion();
-          this.status = ok ? `native ${this.engineVersion}` : 'START FAILED';
+          if (!ok) {
+            hilog.error(0x0000, 'Doom4OH', 'engine failed to start');
+          }
           this.armIdleTimer();
           this.gameVM.armQuitWatcher(() => {
             this.getCtx().terminateSelf();
@@ -211,7 +211,6 @@ struct Index {
       // Touch control overlay: dual sticks, FIRE, weapon switch, USE tap, menu buttons.
       GameControls({
         controlsOpacity: this.overlayOpacity,
-        status: this.status,
         onOpenSettings: () => {
           this.ensureInit();
           this.settingsVM?.rescan();

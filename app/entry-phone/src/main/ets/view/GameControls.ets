@@ -11,13 +11,12 @@ const FIRE_SIZE = 92;      // round fire button
  * The in-game touch overlay: dual analog sticks, FIRE, weapon switch, the USE
  * tap layer, and the settings / menu buttons. Owns its own input state (knob
  * offsets, per-finger tracking) and drives the engine directly via pushDoomKey.
- * The page passes the overlay opacity and status line, and a callback to open
- * settings; everything else is self-contained.
+ * The page passes the overlay opacity and a callback to open settings; everything
+ * else is self-contained.
  */
 @Component
 export struct GameControls {
   @Prop controlsOpacity: number;
-  @Prop status: string;
   onOpenSettings: () => void = () => {};
 
   @State private lKnobX: number = 0;
@@ -380,13 +379,6 @@ export struct GameControls {
         }
         .width('100%')
         .alignItems(VerticalAlign.Bottom)
-
-        Text(`Doom4OH ${this.status}`)
-          .fontSize(10)
-          .fontColor('#66FFFFFF')
-          .width('100%')
-          .textAlign(TextAlign.Center)
-          .margin({ top: 4 })
       }
       .height('100%')
       .width('100%')
