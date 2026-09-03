@@ -6,8 +6,12 @@ export const getVersion: () => string;
 /**
  * Starts the game loop on the native thread. iwadPath: absolute path to the
  * selected IWAD; empty or nonexistent -> the built-in Freedoom copied from rawfile.
+ * soundfontPath: absolute path of the soundfont to use. Passed (phone) -> the
+ * caller is explicit, '' meaning the bundled General MIDI even if a custom file
+ * exists. Omitted (legacy, e.g. the watch) -> the engine auto-detects a
+ * side-loaded files/soundfont.sf2.
  */
-export const startGame: (resMgr: resourceManager.ResourceManager, filesDir: string, iwadPath?: string) => boolean;
+export const startGame: (resMgr: resourceManager.ResourceManager, filesDir: string, iwadPath?: string, soundfontPath?: string) => boolean;
 
 /**
  * Key event. Actions: 0=up 1=down 2=left 3=right 4=fire 5=use

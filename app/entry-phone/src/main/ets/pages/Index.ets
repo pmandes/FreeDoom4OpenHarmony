@@ -17,12 +17,17 @@ import { GameControls } from '../view/GameControls';
 @Component
 struct Index {
   @State status: string = 'starting…';
+  @State engineVersion: string = ''; // native library version, shown in About (stable — unlike status)
   @State showSettings: boolean = false;
   @State wads: WadEntry[] = [];
   @State selectedPath: string = '';
   // Custom music soundfont: '' = bundled General MIDI (TimGM6mb.sf2), otherwise
   // the display name of the side-loaded files/soundfont.sf2 (e.g. a Roland SC-55).
   @State soundfontName: string = '';
+  @State soundfontAvailable: boolean = false; // a custom soundfont file is present
+  @State soundfontLabel: string = '';         // display label for the custom soundfont
+  @State pendingActive: boolean = false; // a staged change awaits an engine restart
+  @State pendingText: string = '';       // summary of the staged changes
   @State overlayOpacity: number = 1;
   private idleTimer: number = -1;
 
@@ -75,14 +80,24 @@ struct Index {
       this.wads = vm.wads();
       this.selectedPath = vm.selection();
       this.soundfontName = vm.soundfontName();
+      this.soundfontAvailable = vm.customAvailable();
+      this.soundfontLabel = vm.customLabel();
+      this.pendingActive = vm.hasPendingChanges();
+      this.pendingText = vm.pendingSummary();
     });
     this.settingsVM = vm;
     vm.load();
   }
 
-  /** Resume the engine when the page becomes visible. */
+  /**
+   * Resume the engine when the page becomes visible — but not while the settings
+   * sheet is open (e.g. returning from the document picker), or the game would run
+   * behind it. The close callback resumes when the sheet is dismissed.
+   */
   onPageShow(): void {
-    this.gameVM.resume();
+    if (!this.showSettings) {
+      this.gameVM.resume();
+    }
   }
 
   /** Pause the engine when the page is hidden. */
@@ -129,15 +144,31 @@ struct Index {
     }
   }
 
-  /** Removes the custom soundfont so the engine falls back to the bundled GM one. */
-  private removeSoundfont(): void {
-    this.settingsVM?.removeSoundfont();
+  /** Switches to the bundled General MIDI (the custom file is kept). */
+  private useBuiltinSoundfont(): void {
+    this.settingsVM?.useBuiltinSoundfont();
     this.status = 'soundfont: built-in';
+  }
+
+  /** Switches to the custom soundfont, when one is available. */
+  private useCustomSoundfont(): void {
+    this.settingsVM?.useCustomSoundfont();
+  }
+
+  /** Deletes the custom soundfont file and reverts to General MIDI. */
+  private deleteCustomSoundfont(): void {
+    this.settingsVM?.deleteCustomSoundfont();
+    this.status = 'soundfont: removed';
   }
 
   /** Saves the selection and restarts the app so the engine reloads with it. */
   private applyAndRestart(): void {
-    this.settingsVM?.persist();
+    // Only restart once the settings are safely on disk — otherwise the restart
+    // would drop the staged changes and reload the old ones.
+    if (this.settingsVM?.persist() !== true) {
+      this.status = 'save failed — settings not applied';
+      return;
+    }
     const want: Want = {
       bundleName: this.getCtx().abilityInfo.bundleName,
       abilityName: this.getCtx().abilityInfo.name,
@@ -167,8 +198,11 @@ struct Index {
         .aspectRatio(1.6)
         .onLoad(() => {
           this.ensureInit();
-          const ok = this.gameVM.start(this.getCtx().resourceManager, this.getCtx().filesDir, this.selectedPath);
-          this.status = ok ? `native ${getDoomVersion()}` : 'START FAILED';
+          const soundfontPath = this.settingsVM?.activeSoundfontPath() ?? '';
+          const ok = this.gameVM.start(this.getCtx().resourceManager, this.getCtx().filesDir,
+            this.selectedPath, soundfontPath);
+          this.engineVersion = getDoomVersion();
+          this.status = ok ? `native ${this.engineVersion}` : 'START FAILED';
           this.armIdleTimer();
           this.gameVM.armQuitWatcher(() => {
             this.getCtx().terminateSelf();
@@ -185,14 +219,25 @@ struct Index {
           this.gameVM.pause();
         }
       })
+        // While the settings sheet is open the controls show through its margins;
+        // disable them so a stray joystick/FIRE touch can't queue input for later.
+        .enabled(!this.showSettings)
 
       if (this.showSettings) {
         SettingsSheet({
           wads: this.wads,
           selectedPath: this.selectedPath,
           soundfontName: this.soundfontName,
+          soundfontAvailable: this.soundfontAvailable,
+          soundfontLabel: this.soundfontLabel,
+          hasPending: this.pendingActive,
+          pendingSummary: this.pendingText,
+          appVersion: this.engineVersion,
           onSelectWad: (path: string) => {
             this.settingsVM?.selectWad(path);
+          },
+          onDeleteWad: (path: string) => {
+            this.settingsVM?.deleteWad(path);
           },
           onImportWad: () => {
             this.importWad();
@@ -200,8 +245,14 @@ struct Index {
           onImportSoundfont: () => {
             this.importSoundfont();
           },
-          onRemoveSoundfont: () => {
-            this.removeSoundfont();
+          onUseBuiltinSoundfont: () => {
+            this.useBuiltinSoundfont();
+          },
+          onUseCustomSoundfont: () => {
+            this.useCustomSoundfont();
+          },
+          onDeleteSoundfont: () => {
+            this.deleteCustomSoundfont();
           },
           onApply: () => {
             this.applyAndRestart();

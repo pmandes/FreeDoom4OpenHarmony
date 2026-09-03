@@ -34,9 +34,19 @@ export function getDoomVersion(): string {
  * Starts the game loop on the native thread. Call after the XComponent surface
  * has been created (onLoad). iwadPath: absolute path to the selected IWAD; empty
  * or omitted -> the built-in Freedoom copied from rawfile into the sandbox.
+ *
+ * soundfontPath decides the music soundfont:
+ *  - passed (phone): the caller is explicit — an empty string means the bundled
+ *    General MIDI even if a custom soundfont.sf2 exists on disk;
+ *  - omitted (legacy, e.g. the watch): the engine auto-detects a side-loaded
+ *    files/soundfont.sf2 as before.
  */
-export function startDoom(resMgr: resourceManager.ResourceManager, filesDir: string, iwadPath: string = ''): boolean {
-  return native.startGame(resMgr, filesDir, iwadPath);
+export function startDoom(resMgr: resourceManager.ResourceManager, filesDir: string,
+  iwadPath: string = '', soundfontPath?: string): boolean {
+  if (soundfontPath === undefined) {
+    return native.startGame(resMgr, filesDir, iwadPath);
+  }
+  return native.startGame(resMgr, filesDir, iwadPath, soundfontPath);
 }
 
 /** Key event from the overlay (down/up). */
