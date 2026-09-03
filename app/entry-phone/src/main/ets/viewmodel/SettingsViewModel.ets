@@ -189,9 +189,9 @@ export class SettingsViewModel {
     this.notify();
   }
 
-  /** Imports a picked WAD (by picker uri); returns its file name. */
-  importWad(uri: string): string {
-    const name = this.wadRepo.importFrom(uri);
+  /** Imports a picked WAD (by picker uri); resolves to its file name. */
+  async importWad(uri: string): Promise<string> {
+    const name = await this.wadRepo.importFrom(uri);
     // Re-importing the WAD the engine is currently running (same name) changes its
     // content without changing the selection — still needs a restart.
     if (`${this.wadRepo.wadsDir()}/${name}` === this.appliedIwad) {
@@ -209,9 +209,9 @@ export class SettingsViewModel {
     this.notify();
   }
 
-  /** Imports a picked soundfont (by picker uri) and makes it the active one; returns its name. */
-  importSoundfont(uri: string): string {
-    const name = this.sfRepo.importFrom(uri);
+  /** Imports a picked soundfont (by picker uri) and makes it the active one; resolves to its name. */
+  async importSoundfont(uri: string): Promise<string> {
+    const name = await this.sfRepo.importFrom(uri);
     this.customName = name;
     // Overwriting the custom file while the engine is running it (even under the
     // same name) changes its content — still needs a restart.
@@ -237,12 +237,18 @@ export class SettingsViewModel {
     }
   }
 
-  /** Deletes the custom soundfont file and reverts to General MIDI. */
-  deleteCustomSoundfont(): void {
-    this.sfRepo.remove();
+  /**
+   * Deletes the custom soundfont file and reverts to General MIDI. Returns false if
+   * the file couldn't be removed — the state is left untouched so it stays truthful.
+   */
+  deleteCustomSoundfont(): boolean {
+    if (!this.sfRepo.remove()) {
+      return false;
+    }
     this.soundfont = '';
     this.customName = '';
     this.notify();
+    return true;
   }
 
   /** Persists the current selection to settings.json; returns false if the save failed. */

@@ -25,6 +25,13 @@ export class GameViewModel {
    */
   start(resMgr: resourceManager.ResourceManager, filesDir: string, iwadPath: string,
     soundfontPath: string): boolean {
+    if (this.started) {
+      // A repeat call (e.g. the XComponent surface recreated and onLoad fired again)
+      // must not re-run the native setup: startGame would re-copy rawfiles and reset
+      // the soundfont on the already-running engine, and game::Start returns false
+      // (g_running is set), which would flip this flag back to false while it runs.
+      return true;
+    }
     this.started = startDoom(resMgr, filesDir, iwadPath, soundfontPath);
     return this.started;
   }

@@ -29,7 +29,12 @@ export class WadRepository {
     }
   }
 
-  /** Every `.wad` in the sandbox, sorted, as name/path entries (excludes the built-in). */
+  /**
+   * Every selectable `.wad` in the sandbox, sorted (excludes the built-in). Only
+   * regular, non-empty files are listed, matching the native startGame contract
+   * (it rejects zero-size paths and falls back to Freedoom), so the UI can't show
+   * an IWAD as active that the engine would refuse to load.
+   */
   list(): WadEntry[] {
     this.ensureDir();
     let files: string[] = [];
@@ -42,7 +47,15 @@ export class WadRepository {
     }
     const entries: WadEntry[] = [];
     for (const f of files) {
-      entries.push({ name: f, path: `${this.dir}/${f}` });
+      const path = `${this.dir}/${f}`;
+      try {
+        const st = fs.statSync(path);
+        if (st.isFile() && st.size > 0) {
+          entries.push({ name: f, path });
+        }
+      } catch (err) {
+        // unreadable entry — skip it
+      }
     }
     return entries;
   }
@@ -70,30 +83,38 @@ export class WadRepository {
     return base;
   }
 
-  /** Copies a picked WAD (by picker uri) into the sandbox; returns its file name. */
-  importFrom(uri: string): string {
-    this.ensureDir(); // usable standalone — don't assume list() ran first
+  /** Copies a picked WAD (by picker uri) into the sandbox; resolves to its file name. */
+  async importFrom(uri: string): Promise<string> {
+    this.ensureDir(); // usable standalone, don't assume list() ran first
     const name = this.safeWadName(uri);
     const dest = `${this.dir}/${name}`;
     const tmp = `${dest}.import.tmp`;
-    const src = fs.openSync(uri, fs.OpenMode.READ_ONLY);
+    const src = await fs.open(uri, fs.OpenMode.READ_ONLY);
     try {
-      // Copy to a temp file and atomically rename it into place. A failed copy then
-      // can't truncate an existing WAD, and a same-name re-import of the running IWAD
-      // (which the engine keeps open and reads lumps from lazily) isn't corrupted —
-      // the open file keeps the old inode while the new one takes the name.
-      fs.copyFileSync(src.fd, tmp);
-      fs.renameSync(tmp, dest);
+      // Copy with the async fileIo API so a multi-MB WAD doesn't block the UI thread,
+      // then atomically rename it into place. A failed copy then can't truncate an
+      // existing WAD, and a same-name re-import of the running IWAD (which the engine
+      // keeps open and reads lumps from lazily) isn't corrupted: the open file keeps
+      // the old inode while the new one takes the name.
+      await fs.copyFile(src.fd, tmp);
+      // A zero-byte or non-regular copy is dropped by list() and the native engine
+      // (which needs st_size > 0), yet the rename would still clobber a valid same-name
+      // WAD with a dud. Validate the temp before committing it; the catch drops it.
+      const st = await fs.stat(tmp);
+      if (!st.isFile() || st.size === 0) {
+        throw new Error('imported WAD is empty');
+      }
+      await fs.rename(tmp, dest);
     } catch (err) {
       try {
-        fs.unlinkSync(tmp); // drop the partial temp
+        await fs.unlink(tmp); // drop the partial temp
       } catch (e) {
         // no temp to remove
       }
       throw err as Error;
     } finally {
       // Close even if the copy threw, so repeated failed imports can't leak fds.
-      fs.closeSync(src);
+      await fs.close(src);
     }
     return name;
   }
