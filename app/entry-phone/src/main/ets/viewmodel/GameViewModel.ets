@@ -21,9 +21,11 @@ export class GameViewModel {
   /**
    * Starts the game loop on the native thread. Call after the XComponent surface
    * exists. iwadPath: absolute path of the chosen IWAD ('' = built-in Freedoom).
+   * soundfontPath: absolute path of the soundfont ('' = bundled General MIDI).
    */
-  start(resMgr: resourceManager.ResourceManager, filesDir: string, iwadPath: string): boolean {
-    this.started = startDoom(resMgr, filesDir, iwadPath);
+  start(resMgr: resourceManager.ResourceManager, filesDir: string, iwadPath: string,
+    soundfontPath: string): boolean {
+    this.started = startDoom(resMgr, filesDir, iwadPath, soundfontPath);
     return this.started;
   }
 

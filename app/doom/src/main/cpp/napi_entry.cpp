@@ -36,18 +36,22 @@ static std::string GetStringArg(napi_env env, napi_value value)
     return out;
 }
 
-// startGame(resourceManager, filesDir, iwadPath?) -> bool
+// startGame(resourceManager, filesDir, iwadPath?, soundfontPath?) -> bool
 // iwadPath: absolute path to the imported IWAD; empty/missing
 // -> falls back to the bundled freedoom1.wad copied from rawfile.
+// soundfontPath (4-arg form): the caller decides the music soundfont — an explicit
+// empty string means the bundled General MIDI even if a custom soundfont.sf2 exists.
+// When the argument is OMITTED (3-arg legacy form, e.g. the watch), the engine
+// auto-detects a side-loaded files/soundfont.sf2, preserving the original behaviour.
 static napi_value StartGame(napi_env env, napi_callback_info info)
 {
-    size_t argc = 3;
-    napi_value args[3] = {nullptr, nullptr, nullptr};
+    size_t argc = 4;
+    napi_value args[4] = {nullptr, nullptr, nullptr, nullptr};
     napi_get_cb_info(env, info, &argc, args, nullptr, nullptr);
 
     napi_value result = nullptr;
     if (argc < 2) {
-        OH_LOG_ERROR(LOG_APP, "startGame: expected (resourceManager, filesDir, iwadPath?)");
+        OH_LOG_ERROR(LOG_APP, "startGame: expected (resourceManager, filesDir, iwadPath?, soundfontPath?)");
         napi_get_boolean(env, false, &result);
         return result;
     }
@@ -77,19 +81,27 @@ static napi_value StartGame(napi_env env, napi_callback_info info)
     }
     if (ok) {
         // The soundfont is optional — without it the game runs with SFX but no music.
-        // Prefer a user-provided soundfont side-loaded into the sandbox as
-        // "soundfont.sf2" (e.g. a Roland SC-55 SF2, the module DOOM's music was
-        // written for) over the bundled General MIDI TimGM6mb.sf2.
-        const std::string userSf = filesDir + "/soundfont.sf2";
+        // Two calling conventions:
+        //  - 4 args (phone): the caller decides. args[3] is the soundfont path; an
+        //    empty string means the bundled General MIDI, even if soundfont.sf2 exists.
+        //  - 3 args (legacy, e.g. the watch which side-loads files/soundfont.sf2):
+        //    auto-detect that file, preserving the original file-presence behaviour.
+        std::string soundfontPath;
+        if (argc >= 4 && args[3] != nullptr) {
+            soundfontPath = GetStringArg(env, args[3]);
+        } else {
+            soundfontPath = filesDir + "/soundfont.sf2"; // legacy auto-detect
+        }
         struct stat sfSt{};
-        if (stat(userSf.c_str(), &sfSt) == 0 && sfSt.st_size > 0) {
-            music::SetSoundFontPath(userSf);
-            OH_LOG_INFO(LOG_APP, "startGame: using user soundfont %{public}s (%{public}ld B)", userSf.c_str(),
+        if (!soundfontPath.empty() && stat(soundfontPath.c_str(), &sfSt) == 0 && sfSt.st_size > 0) {
+            music::SetSoundFontPath(soundfontPath);
+            OH_LOG_INFO(LOG_APP, "startGame: using user soundfont %{public}s (%{public}ld B)", soundfontPath.c_str(),
                         static_cast<long>(sfSt.st_size));
         } else {
             const std::string sfPath = filesDir + "/TimGM6mb.sf2";
             if (files::EnsureRawFileCopied(resMgr, "TimGM6mb.sf2", sfPath)) {
                 music::SetSoundFontPath(sfPath);
+                OH_LOG_INFO(LOG_APP, "startGame: using bundled General MIDI (TimGM6mb.sf2)");
             }
         }
     }
