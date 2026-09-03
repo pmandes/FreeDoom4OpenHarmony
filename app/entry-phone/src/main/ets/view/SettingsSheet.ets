@@ -311,8 +311,9 @@ export struct SettingsSheet {
   }
 
   build() {
-    // Stack so the pending footer floats over the content instead of pushing it
-    // up: the base layer reserves a bottom strip, the footer overlays it.
+    // Stack so the pending footer floats over the content at the bottom instead of
+    // pushing it up: the base layer holds the content and action bar, the footer
+    // overlays the bottom strip.
     Stack({ alignContent: Alignment.Bottom }) {
       Column() {
         // Header
@@ -381,8 +382,8 @@ export struct SettingsSheet {
       .width('100%')
       .height('100%')
 
-      // Pending-changes footer — overlays the action bar, so showing or hiding
-      // it never reflows the content above.
+      // Pending-changes footer — pinned to the bottom, overlaying the action bar so
+      // showing or hiding it never reflows the content above.
       if (this.hasPending) {
         Row({ space: 11 }) {
           Column()

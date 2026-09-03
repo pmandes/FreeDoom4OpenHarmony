@@ -20,43 +20,70 @@ export class SoundfontRepository {
   /** True when a custom soundfont is present. */
   exists(): boolean {
     try {
-      fs.accessSync(this.path);
-      return true;
+      // Match the native startGame contract: a regular, non-empty file. A missing
+      // path makes statSync throw; a directory or zero-byte file would be rejected
+      // by the engine (it needs st_size > 0), so don't report it as available here.
+      // (accessSync is unreliable in this SDK: it can return without throwing for a
+      // missing path, so it would keep reporting a deleted soundfont as present.)
+      const st = fs.statSync(this.path);
+      return st.isFile() && st.size > 0;
     } catch (err) {
       return false;
     }
   }
 
-  /** Copies a picked `.sf2` (by picker uri) over the custom slot; returns its file name. */
-  importFrom(uri: string): string {
-    const name = decodeURIComponent(uri.split('/').pop() ?? 'soundfont.sf2');
-    const tmp = `${this.path}.import.tmp`;
-    const src = fs.openSync(uri, fs.OpenMode.READ_ONLY);
+  /** Copies a picked `.sf2` (by picker uri) over the custom slot; resolves to its file name. */
+  async importFrom(uri: string): Promise<string> {
+    const base = uri.split('/').pop() ?? 'soundfont.sf2';
+    let name: string;
     try {
-      // Copy to a temp file and atomically rename it into place, so a failed copy of
-      // a large .sf2 can't truncate the previous valid soundfont.
-      fs.copyFileSync(src.fd, tmp);
-      fs.renameSync(tmp, this.path);
+      name = decodeURIComponent(base);
+    } catch (err) {
+      // Malformed percent-encoding: this name is only the display label (the file
+      // always goes to the fixed slot), so keep the raw basename instead of aborting.
+      name = base;
+    }
+    const tmp = `${this.path}.import.tmp`;
+    const src = await fs.open(uri, fs.OpenMode.READ_ONLY);
+    try {
+      // Copy with the async fileIo API so a large .sf2 (tens of MB) doesn't block the
+      // UI thread, then atomically rename it into place, so a failed copy can't
+      // truncate the previous valid soundfont.
+      await fs.copyFile(src.fd, tmp);
+      // A zero-byte or non-regular copy would be rejected by exists() and the native
+      // engine (which needs st_size > 0), yet the rename would still clobber a good
+      // soundfont with a dud. Validate the temp before committing it; the catch drops it.
+      const st = await fs.stat(tmp);
+      if (!st.isFile() || st.size === 0) {
+        throw new Error('imported soundfont is empty');
+      }
+      await fs.rename(tmp, this.path);
     } catch (err) {
       try {
-        fs.unlinkSync(tmp); // drop the partial temp
+        await fs.unlink(tmp); // drop the partial temp
       } catch (e) {
         // no temp to remove
       }
       throw err as Error;
     } finally {
       // Close even if the copy threw, so repeated failed imports can't leak fds.
-      fs.closeSync(src);
+      await fs.close(src);
     }
     return name;
   }
 
-  /** Removes the custom soundfont so the engine falls back to the bundled GM one. */
-  remove(): void {
+  /**
+   * Removes the custom soundfont. Returns true when the file is gone afterwards
+   * (deleted, or already absent), false when a real failure left it in place — the
+   * post-state is checked directly, so a genuine I/O/permission error isn't mistaken
+   * for "already gone".
+   */
+  remove(): boolean {
     try {
       fs.unlinkSync(this.path);
     } catch (err) {
-      // already gone — OK
+      // Ignore here — exists() below is the source of truth (ENOENT vs a real error).
     }
+    return !this.exists();
   }
 }

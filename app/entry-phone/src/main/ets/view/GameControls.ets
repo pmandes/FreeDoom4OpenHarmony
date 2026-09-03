@@ -36,6 +36,8 @@ export struct GameControls {
   // Without this, both handlers would read touches[0] and confuse fingers.
   private lFingerId = -1;
   private rFingerId = -1;
+  // FIRE is a held key (not a tap), so track it to release it on demand.
+  private firing = false;
 
   /** Sends a short down/up tap for the given action (menu presses). */
   private tapKey(action: DoomAction): void {
@@ -95,6 +97,23 @@ export struct GameControls {
     this.rKnobX = 0;
     this.rTurnL = this.setJoyKey(DoomAction.Left, false, this.rTurnL);
     this.rTurnR = this.setJoyKey(DoomAction.Right, false, this.rTurnR);
+  }
+
+  /**
+   * Releases every held control (both stick axes and FIRE) and drops finger tracking.
+   * Called before opening settings: the sheet disables this overlay, so a finger held
+   * on a stick or FIRE would never deliver its Up here and the native pause keeps the
+   * key state, leaving movement/firing stuck on when the game resumes.
+   */
+  releaseAllControls(): void {
+    this.lFingerId = -1;
+    this.rFingerId = -1;
+    this.resetLeftAxes();
+    this.resetRightAxis();
+    if (this.firing) {
+      pushDoomKey(DoomAction.Fire, false);
+      this.firing = false;
+    }
   }
 
   /**
@@ -259,6 +278,9 @@ export struct GameControls {
             .border({ width: 1, color: '#1FFFFFFF' })
             .shadow({ radius: 10, color: '#59000000', offsetX: 0, offsetY: 4 })
             .onClick(() => {
+              // Neutralise any held stick/FIRE before the sheet disables this overlay,
+              // so its Up isn't lost and the game doesn't resume with input stuck on.
+              this.releaseAllControls();
               this.onOpenSettings();
             })
           this.iconKey('≡', DoomAction.Escape)
@@ -340,9 +362,11 @@ export struct GameControls {
             .onTouch((event: TouchEvent) => {
               if (event.type === TouchType.Down) {
                 pushDoomKey(DoomAction.Fire, true);
+                this.firing = true;
                 this.tapKey(DoomAction.Enter); // confirm in menus/prompts
               } else if (event.type === TouchType.Up || event.type === TouchType.Cancel) {
                 pushDoomKey(DoomAction.Fire, false);
+                this.firing = false;
               }
               // USE (doors) = tap in the center of the screen — no fire.
             })

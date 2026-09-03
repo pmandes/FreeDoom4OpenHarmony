@@ -117,7 +117,7 @@ struct Index {
       if (!uris || uris.length === 0) {
         return;
       }
-      vm.importWad(uris[0]);
+      await vm.importWad(uris[0]);
     } catch (err) {
       hilog.error(0x0000, 'Doom4OH', 'WAD import failed: %{public}s', JSON.stringify(err));
     }
@@ -138,7 +138,7 @@ struct Index {
       if (!uris || uris.length === 0) {
         return;
       }
-      vm.importSoundfont(uris[0]);
+      await vm.importSoundfont(uris[0]);
     } catch (err) {
       hilog.error(0x0000, 'Doom4OH', 'soundfont import failed: %{public}s', JSON.stringify(err));
     }
@@ -156,7 +156,9 @@ struct Index {
 
   /** Deletes the custom soundfont file and reverts to General MIDI. */
   private deleteCustomSoundfont(): void {
-    this.settingsVM?.deleteCustomSoundfont();
+    if (this.settingsVM?.deleteCustomSoundfont() === false) {
+      hilog.error(0x0000, 'Doom4OH', 'failed to remove the custom soundfont');
+    }
   }
 
   /** Saves the selection and restarts the app so the engine reloads with it. */

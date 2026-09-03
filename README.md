@@ -49,6 +49,8 @@ FreeDoom4OpenHarmony/
     doom/              shared HAR: doomgeneric engine, OHOS platform layer (video,
                        input, audio, FluidLite music), NAPI bridge, DoomEngine.ets,
                        plus freedoom1.wad and TimGM6mb.sf2 as rawfile
+    core/              shared HAR: device-agnostic model and repositories (settings,
+                       WAD and soundfont storage) behind the phone's MVVM UI
     entry-phone/       phone HAP  (module entry_phone, PhoneEntryAbility)
     entry-watch/       watch HAP  (module entry_watch, WatchEntryAbility)
   assets/              screenshots
@@ -57,8 +59,9 @@ FreeDoom4OpenHarmony/
 `app/` is **one Hvigor project with two products**: `default` builds the phone
 HAP (`entry_phone`), `watch` builds the wearable HAP (`entry_watch`). Both
 depend on the `doom` HAR; its native library, ArkTS bridge and rawfile game data
-are merged into each HAP at build time. Open `app/` as the project root in
-DevEco Studio, not the repository root.
+are merged into each HAP at build time. The phone HAP additionally uses the
+`core` HAR for its settings and file-storage layer. Open `app/` as the project
+root in DevEco Studio, not the repository root.
 
 Native code is built for `arm64-v8a` (devices) and `x86_64` (emulator).
 
@@ -212,10 +215,10 @@ you pick one from the settings screen (the **⚙** button on the game screen).
 
 **Phone - import from storage:**
 
-1. Tap **⚙** > **Load WAD…** and pick a `.wad` in the system file picker; it is
-   copied into the sandbox and appears in the list.
-2. Tap the WAD to select it (✓), then **Apply & Restart**. The game restarts
-   with the chosen IWAD.
+1. Tap **⚙** (Game section) > **+ Import WAD…** and pick a `.wad` in the system
+   file picker; it is copied into the sandbox and appears in the list.
+2. Tap the WAD to select it (✓), then **Restart** in the pending bar. The game
+   restarts with the chosen IWAD. Long-press an imported WAD (🗑) to remove it.
 
 **Watch - download over the network:**
 
@@ -247,8 +250,9 @@ bundled `TimGM6mb.sf2` (6 MB, General MIDI) is used by default. For the sound
 DOOM's music was composed on, load a **Roland SC-55** SoundFont; it takes
 precedence over the bundled one at the next start.
 
-**Phone - from the app:** settings screen (**⚙**) > **Load soundfont…**, pick an
-`.sf2`, then **Apply & Restart**. **Remove** reverts to the built-in one.
+**Phone - from the app:** settings screen (**⚙**), **Audio** section >
+**+ Load .sf2…**, pick an `.sf2`, then **Restart** in the pending bar.
+**Remove custom** reverts to the built-in one.
 
 **Any device - over `hdc`:** copy the file into the sandbox as
 `files/soundfont.sf2` (the sandbox path contains the HAP module name):
