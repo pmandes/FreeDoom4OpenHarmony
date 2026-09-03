@@ -1,0 +1,10 @@
+{
+  "name": "core",
+  "version": "1.0.0",
+  "description": "Shared, device-agnostic app layer: game settings model, sandbox repositories (WAD, soundfont) and pure logic. No ArkUI, no native code.",
+  "main": "Index.ets",
+  "author": "",
+  "license": "GPL-2.0",
+  "dependencies": {
+  }
+}

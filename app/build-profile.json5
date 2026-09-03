@@ -48,6 +48,11 @@
       "srcPath": "./doom"
     },
     {
+      // Shared app-layer HAR: settings model, sandbox repositories, pure logic (no UI/native).
+      "name": "core",
+      "srcPath": "./core"
+    },
+    {
       "name": "entry_phone",
       "srcPath": "./entry-phone",
       "targets": [
