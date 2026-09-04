@@ -6,7 +6,8 @@
   "author": "",
   "license": "",
   "dependencies": {
-    "doom": "file:../doom"
+    "doom": "file:../doom",
+    "core": "file:../core"
   }
 }
 
