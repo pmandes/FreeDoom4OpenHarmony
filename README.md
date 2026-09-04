@@ -10,9 +10,9 @@ layer and an ArkTS/ArkUI touch overlay, shipping the free
 ![Language](https://img.shields.io/badge/lang-ArkTS%20and%20C%2FC%2B%2B-orange)
 ![License](https://img.shields.io/badge/license-GPLv2-green)
 
-| Phone (HarmonyOS) | Phone (Oniro) | Watch |
-|---|---|---|
-| ![Phone gameplay](assets/screenshot-mobile.png) | ![Oniro / OpenHarmony](assets/screenshot-openharmony.png) | ![Watch](assets/screenshot-watch.png) |
+| Volla Phone X23 (Oniro/OH 6.1) | Watch 5 (HarmonyOS 6.1) |
+|---|---|
+| ![Oniro / OpenHarmony](assets/screenshot-openharmony.png) | ![Watch 5](assets/screenshot-watch.png) |
 
 ## Features
 
