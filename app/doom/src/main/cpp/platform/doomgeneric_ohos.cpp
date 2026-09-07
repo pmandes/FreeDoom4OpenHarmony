@@ -1,7 +1,9 @@
 #include "doomgeneric_ohos.h"
 
 #include <atomic>
+#include <cctype>
 #include <chrono>
+#include <cstdint>
 #include <cstdio>
 #include <cstring>
 #include <ctime>
@@ -9,6 +11,7 @@
 #include <thread>
 #include <vector>
 
+#include <sys/stat.h>
 #include <unistd.h>
 
 #include "hilog/log.h"
@@ -34,6 +37,7 @@ extern char savegamestrings[10][24]; // SAVESTRINGSIZE = 24
 extern int gamemode;                 // GameMode_t: 1 == commercial (Doom II)
 extern int gameepisode;
 extern int gamemap;
+extern char *savegamedir;            // d_main.c: directory savegames are read/written from
 }
 
 // When the engine enters slot-name editing (saveStringEnter 0->1), we write an
@@ -123,6 +127,87 @@ void StartStdioRelay()
     }).detach();
 }
 
+// Filesystem-safe base name of a WAD path (no directory, no extension).
+static std::string WadBaseName(const std::string &path)
+{
+    const size_t slash = path.find_last_of('/');
+    std::string base = (slash == std::string::npos) ? path : path.substr(slash + 1);
+    const size_t dot = base.find_last_of('.');
+    if (dot != std::string::npos) {
+        base = base.substr(0, dot);
+    }
+    for (char &c : base) {
+        if (!std::isalnum(static_cast<unsigned char>(c)) && c != '_' && c != '-') {
+            c = '_';
+        }
+    }
+    return base.empty() ? std::string("iwad") : base;
+}
+
+// Cheap content fingerprint (FNV-1a over the file size + first 4 KB, which covers the
+// WAD header and first lumps). Distinguishes different IWADs even when renamed to the
+// same base name, so their savegame directories never collide.
+static std::string IwadFingerprint(const std::string &path)
+{
+    uint32_t h = 2166136261u; // FNV-1a offset basis
+    auto mix = [&h](const unsigned char *p, size_t n) {
+        for (size_t i = 0; i < n; i++) {
+            h ^= p[i];
+            h *= 16777619u;
+        }
+    };
+    struct stat st{};
+    if (stat(path.c_str(), &st) == 0) {
+        const uint64_t sz = static_cast<uint64_t>(st.st_size);
+        mix(reinterpret_cast<const unsigned char *>(&sz), sizeof(sz));
+    }
+    FILE *f = fopen(path.c_str(), "rb");
+    if (f != nullptr) {
+        unsigned char buf[4096];
+        const size_t n = fread(buf, 1, sizeof(buf), f);
+        mix(buf, n);
+        fclose(f);
+    }
+    char hex[9];
+    snprintf(hex, sizeof(hex), "%08x", h);
+    return std::string(hex);
+}
+
+// Removes the pre-fix shared save location (workDir/.savegame and any stray
+// workDir/doomsavN.dsg). Those slots mixed IWADs and could only ever crash on load
+// now that saves are per-IWAD; they can't be migrated (a shared save records no IWAD),
+// so drop them once. Idempotent.
+static void RemoveLegacySaves()
+{
+    const std::string legacy = g_workDir + "/.savegame";
+    for (int i = 0; i < 8; i++) {
+        char name[32];
+        snprintf(name, sizeof(name), "/doomsav%d.dsg", i);
+        unlink((legacy + name).c_str());
+        unlink((g_workDir + name).c_str());
+    }
+    unlink((legacy + "/temp.dsg").c_str());
+    rmdir(legacy.c_str()); // only succeeds once the directory is empty
+}
+
+// Points savegamedir at a per-IWAD subdirectory. Vanilla DOOM savegames don't record
+// which IWAD they belong to, and the engine only namespaces saves by gamemission, so
+// two IWADs of the same mission (e.g. Freedoom Phase 1 vs Ultimate Doom) would share a
+// slot. Loading a save across mismatched maps corrupts P_UnArchiveSpecials and crashes,
+// so give every distinct IWAD file its own save directory (this also removes the
+// confusing shared save slots).
+static void SetPerIwadSaveDir()
+{
+    const std::string id = WadBaseName(g_wadPath) + "_" + IwadFingerprint(g_wadPath);
+    const std::string root = g_workDir + "/saves";
+    const std::string dir = root + "/" + id + "/"; // trailing slash: engine prepends it to the file name
+    mkdir(root.c_str(), 0770);
+    mkdir(dir.c_str(), 0770);
+    savegamedir = strdup(dir.c_str());
+    RemoveLegacySaves();
+    OH_LOG_INFO(LOG_APP, "game: savegamedir=%{public}s", savegamedir);
+}
+
 void GameLoop()
 {
     if (chdir(g_workDir.c_str()) != 0) {
@@ -146,6 +231,9 @@ void GameLoop()
     // "press Y" prompts (quit, etc.) are confirmed with the on-screen ENTER —
     // the overlay has no Y key; ESC still cancels the prompt.
     key_menu_confirm = KEY_ENTER;
+
+    // Isolate savegames per IWAD file (prevents the cross-IWAD load crash).
+    SetPerIwadSaveDir();
 
     OH_LOG_INFO(LOG_APP, "game: engine initialized, entering tick loop");
 
