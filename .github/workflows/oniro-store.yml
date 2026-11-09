@@ -1,0 +1,26 @@
+# Builds the Oniro / OpenHarmony phone HAP (product `oniro`) from source on a
+# GitHub-hosted runner, attaches it to the GitHub release for the tag, and
+# publishes it to the Oniro App Store (https://store.iparo.app) with the
+# "Built from source" badge. See
+# https://github.com/eclipse-oniro4openharmony/oniro-app-store-actions
+#
+# Release: bump versionCode (and versionName) in app/AppScope/app.json5,
+# commit, then push a tag:  git tag v1.0.1 && git push origin v1.0.1
+name: Oniro App Store
+
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  id-token: write   # proves to the store which repository and commit this is
+  contents: write   # creates the GitHub release that hosts the package
+
+jobs:
+  publish:
+    uses: eclipse-oniro4openharmony/oniro-app-store-actions/.github/workflows/publish.yml@v1
+    with:
+      project-dir: app
+      product: oniro
+      app-name: FreeDoom
+      category: game

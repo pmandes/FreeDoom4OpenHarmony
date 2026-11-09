@@ -5,7 +5,7 @@
     "description": "$string:module_desc",
     "mainElement": "PhoneEntryAbility",
     "deviceTypes": [
-      "phone"
+      "default"
     ],
     "deliveryWithInstall": true,
     "installationFree": false,

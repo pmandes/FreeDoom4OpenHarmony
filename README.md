@@ -89,7 +89,8 @@ Native code is built for `arm64-v8a` (devices) and `x86_64` (emulator).
    devices). One signing config covers both products; connect the phone and the
    watch so the debug profile includes both devices.
 3. Pick the product with the **Product** button in the top-right corner of
-   the IDE (`default` = phone, `watch` = wearable) and click Apply. Then choose
+   the IDE (`default` = phone, `watch` = wearable, `oniro` = phone on the
+   OpenHarmony SDK, see [Oniro / OpenHarmony build](#oniro--openharmony-build-and-the-oniro-app-store)) and click Apply. Then choose
    the matching run configuration (`entry_phone` / `entry_watch`) and device,
    and press Run, or Build > Build Hap(s).
 
@@ -171,6 +172,31 @@ hdc -t <device> shell aa start -b org.pmandes.fd4ohos -a WatchEntryAbility
 
 The phone HAP also installs and runs on **Oniro / OpenHarmony 6.x** devices
 (tested on the Volla Phone X23).
+
+### Oniro / OpenHarmony build and the Oniro App Store
+
+The `oniro` product builds the same phone HAP (`entry_phone`) against the public
+OpenHarmony SDK (API 23, runs on API 20+) instead of the HarmonyOS SDK, so it
+needs no Huawei account. With
+[`oniro-app`](https://www.npmjs.com/package/@oniroproject/oniro-app)
+(`npm install -g @oniroproject/oniro-app`):
+
+```
+oniro-app cmdtools install && oniro-app sdk install 6.1
+cd app
+oniro-app sign --product oniro .   # OpenHarmony development key
+oniro-app build --product oniro --mode release .
+hdc install -r entry-phone/build/oniro/outputs/default/entry_phone-default-signed.hap
+```
+
+`oniro-app sign` rewrites `build-profile.json5` (its `signingConfigs`, and drops
+the comments), so keep that change out of commits, as with DevEco's signing.
+
+`.github/workflows/oniro-store.yml` publishes this build to the
+[Oniro App Store](https://store.iparo.app): bump `versionCode` in
+`app/AppScope/app.json5`, commit, and push a `v*` tag. GitHub Actions builds the
+`oniro` product from that commit, attaches the HAP to the GitHub release for the
+tag, and registers it with the store, where it is marked *Built from source*.
 
 Logs are tagged `Doom4OH`:
 

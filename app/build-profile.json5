@@ -30,6 +30,21 @@
             "useNormalizedOHMUrl": true
           }
         }
+      },
+      {
+        // Oniro / OpenHarmony phone product (entry_phone HAP), built against the
+        // public OpenHarmony SDK and published to the Oniro App Store by
+        // .github/workflows/oniro-store.yml.
+        "name": "oniro",
+        "compileSdkVersion": 23,
+        "compatibleSdkVersion": 20,
+        "runtimeOS": "OpenHarmony",
+        "buildOption": {
+          "strictMode": {
+            "caseSensitiveCheck": true,
+            "useNormalizedOHMUrl": true
+          }
+        }
       }
     ],
     "buildModeSet": [
@@ -59,7 +74,8 @@
         {
           "name": "default",
           "applyToProducts": [
-            "default"
+            "default",
+            "oniro"
           ]
         }
       ]
